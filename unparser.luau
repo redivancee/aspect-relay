@@ -97,13 +97,14 @@ local function readParams(statement)
     local params = statement.parameters
 
     for i, param in params do
-        code = code .. (i > 1 and ", " or "") .. unparser:readexpr(param)
+        code = code .. (i > 1 and ", " or "") .. param.name.text
     end
-    if statement.vararg then
-        code = code .. (#params == 0 and "" or ",") .. "..."
+    local hasVararg = statement.vararg ~= nil
+    if hasVararg then
+        code = code .. (#params == 0 and "" or ", ") .. "..."
     end
-    
-    return code .. ")", statement.vararg
+
+    return code .. ")", hasVararg
 end
 
 local function getValue(op, v1, v2)
@@ -127,7 +128,7 @@ local function getValue(op, v1, v2)
 end
 
 function unparser:construct(statement : table) : table
-    if statement.istoken then
+    if statement.kind == "token" then
         return {
             class = "constant"
         }
@@ -156,15 +157,15 @@ local function is(statement, tag, deepSearch) --> tries to find the deepest ment
     if statement.expression then --> works for groups!
         return is(statement.expression, tag)
     end
-    if statement.lhsoperand then
-        return is(statement.lhsoperand, tag)
+    if statement.lhsOperand then
+        return is(statement.lhsOperand, tag)
     end
     if statement.tag == "unary" then
         return is(statement.operand, tag)
     end
     if deepSearch then
-        if statement.rhsoperand then
-            return is(statement.rhsoperand, tag)
+        if statement.rhsOperand then
+            return is(statement.rhsOperand, tag)
         end
     end
 end
@@ -179,11 +180,12 @@ local function Spy(statement)
 end
 
 local function isSpiedVar(statement, dontIncludeLocals)
+    if not statement then return false end
     -- This isn't 100% accurate, it's just if this is false, then you can treat the statement as normal, otherwise hook certain things. (For optimization)
     local Binary = is(statement, "binary")
     if(Binary) then
         --> keep looking through the operands till u find a spied var
-        if(isSpiedVar(Binary.lhsoperand) or isSpiedVar(Binary.rhsoperand)) then
+        if(isSpiedVar(Binary.lhsOperand) or isSpiedVar(Binary.rhsOperand)) then
             return true;
         end
     end
@@ -204,7 +206,9 @@ local function getLength(thing)
             count += 1
         end
     elseif thing.tag == "string" then
-        count = #thing.text
+        local token = thing.value
+        local textValue = type(token) == "table" and token.text or thing.text or ""
+        count = #textValue
     end
     return count
 end
@@ -215,19 +219,19 @@ function unparser:readstatementF(statement, dontAddDo, ...)
 
     Spy(statement)
 
-    if tag == "local" then
+    if tag == "local" or tag == "const" then
         local code = "local ";
         local DoSpy;
         for i, var in statement.variables do
-            local variable = var.node.name.text
+            local variable = var.name.text
             code = code .. (i > 1 and "," or "") .. variable
         end
         if #statement.values == 0 then return code end
 
         code = code .. " = "
         for i, val in statement.values do
-            code = code .. (i > 1 and "," or "") .. self:readexpr(val.node)
-            DoSpy = DoSpy or Spied[val.node]
+            code = code .. (i > 1 and "," or "") .. self:readexpr(val)
+            DoSpy = DoSpy or Spied[val]
         end
         Spied[statement] = Spied[statement] or DoSpy
         return code
@@ -235,15 +239,15 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         local code = "";
 
         for i, var in statement.variables do
-            code = code .. (i > 1 and ", " or "") .. self:readexpr(var.node, false, true)
+            code = code .. (i > 1 and ", " or "") .. self:readexpr(var, false, true)
         end
 
         code = code .. " = "
 
         for i, val in statement.values do
-            local node = val.node
+            local node = val
             local var = statement.variables[i]
-            if constantCollection and (var and is(var.node, "index") or is(node, "string")) then -- a[x] = 1 or a = "hi"
+            if constantCollection and (var and is(var, "index") or is(node, "string")) then -- a[x] = 1 or a = "hi"
                 code = code .. callFormat("GET(%s)", self:readexpr(node))
             else
                 code = code .. self:readexpr(node)
@@ -252,19 +256,20 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         end
         return code
     elseif tag == "compoundassign" then
-        return format("%s%s%s", self:readexpr(statement.variable, nil, true), statement.operand.text, self:readexpr(statement.value))
+        return format("%s%s%s", self:readexpr(statement.variable, nil, true), statement.operator.text, self:readexpr(statement.value))
     elseif tag == "expression" then
         return self:readexpr(statement.expression)
     elseif tag == "function" then
-        local params, vararg = readParams(statement.body)
+        local fn = statement.func
+        local params, vararg = readParams(fn)
         local code = "function " .. self:readexpr(statement.name, nil, true, true) .. params
-        code = code .. self:readexpr(statement.body.body, true, nil, vararg) .. "end"
+        code = code .. self:readexpr(fn.body, true, nil, vararg) .. "end"
         
         return code
     elseif tag == "block" then
-        local location = statement.location.begin
-        local content = lines[location.line + 1]
-        local shouldAddDo = content:sub(location.column + 1, location.column + 2) == "do"
+        local location = statement.location
+        local content = lines[location.beginLine + 1] or ""
+        local shouldAddDo = content:sub(location.beginColumn + 1, location.beginColumn + 2) == "do"
         local code = shouldAddDo and "do " or ""
         
         for _, stat in statement.statements do
@@ -273,16 +278,17 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         end
         return code .. (shouldAddDo and "end;" or "")
     elseif tag == "localfunction" then
-        local name = self:readexpr(statement.name)
-        local params, vararg = readParams(statement.body)
+        local name = statement.name.name.text
+        local fn = statement.func
+        local params, vararg = readParams(fn)
         local code = "local function " .. name .. params
-        code = code .. self:readexpr(statement.body.body, true, nil, vararg) .. "end"
+        code = code .. self:readexpr(fn.body, true, nil, vararg) .. "end"
         
         return code
     elseif tag == "conditional" then
         ifId += 1
 
-        local elseblock = statement.elseblock
+        local elseblock = statement.elseBlock
         local condition = self:readexpr(statement.condition)
         local Thing, Path;
 
@@ -295,13 +301,13 @@ function unparser:readstatementF(statement, dontAddDo, ...)
             Path = callFormat("checkifend(%d)", ifId)
         end
 
-        local code = format("if %s then %s", Thing, self:readstatement(statement.thenblock, Path))
+        local code = format("if %s then %s", Thing, self:readstatement(statement.thenBlock, Path))
 
         for _, elif in next, Elseifs do
             local OtherThing = callFormat("CHECKIF(%s,%d)", self:readexpr(elif.condition), ifId)
             --local OtherThing = callFormat("CHECKELSEIF(%s,%d)", self:readexpr(elif.condition), ifId)
 
-            code = code .. format("elseif %s then %s", OtherThing, self:readstatement(elif.thenblock, Path))
+            code = code .. format("elseif %s then %s", OtherThing, self:readstatement(elif.thenBlock, Path))
         end
 
         if elseblock then
@@ -337,8 +343,8 @@ function unparser:readstatementF(statement, dontAddDo, ...)
 
         local args = ""
         for i, node in statement.expressions do
-            --args = args .. (dontAddDo and ", " or (i > 1 and ", " or "")) .. self:readexpr(node.node)
-            args = args .. (i > 1 and ", " or "") .. self:readexpr(node.node)
+            --args = args .. (dontAddDo and ", " or (i > 1 and ", " or "")) .. self:readexpr(node)
+            args = args .. (i > 1 and ", " or "") .. self:readexpr(node)
         end
 
         Start = Start .. args-- .. (dontAddDo and ")" or "")
@@ -362,19 +368,26 @@ function unparser:readstatementF(statement, dontAddDo, ...)
     elseif tag == "forin" then
         local code = "for "
         for i, node in statement.variables do
-            code = code .. (i > 1 and ", " or "") .. node.node.name.text
+            code = code .. (i > 1 and ", " or "") .. node.name.text
         end
         local forin = ""
         for i, val in statement.values do
-            forin = forin .. (i > 1 and ", " or "") .. self:readexpr(val.node)
+            forin = forin .. (i > 1 and ", " or "") .. self:readexpr(val)
         end
 
         code = code .. format(" in %s do %send", forin, self:readstatement(statement.body, true))
         return code
     elseif tag == "repeat" then
         return format("repeat %s until %s", self:readexpr(statement.body, true), self:readexpr(statement.condition))
+    elseif tag == "do" then
+        return "do " .. self:readexpr(statement.body) .. " end"
+    elseif tag == "break" then
+        return "break"
+    elseif tag == "continue" then
+        return "continue"
     elseif tag == "typealias" then -- export
-        return format("export type %s = %s", statement.name.text, self:readexpr(statement.type, nil, nil, true))
+        local prefix = statement.isExported and "export type " or "type "
+        return format("%s%s = %s", prefix, statement.name.text, self:readexpr(statement.type, nil, nil, true))
     end
 
     print(beautify(statement))
@@ -395,24 +408,21 @@ function unparser:readexpr(statement, ...)
 
     if expr.class == "statement" then
         return self:readstatement(statement, ...)
-    elseif statement.istoken and not statement.tag then
-        if statement.value ~= nil then return beautify(statement.value, statement.quotestyle) end
-
-        return beautify(statement.text, statement.quotestyle)
+    elseif statement.kind == "token" then
+        return statement.text
     end
-
-    local node = statement.node
-    if node then statement = node end
 
     local tag = statement.tag or statement.kind;
 
     local _, _, rawNextQuestion = ...
     if not rawNextQuestion then rawNextQuestion = not constantCollection end
 
-    if tag == "number" then
-        return statement.value or statement.text
+    if tag == "number" or tag == "integer" then
+        return tostring(statement.value or (statement.token and statement.token.text) or "0")
     elseif tag == "string" then
-        return beautify(statement.text, statement.quotestyle, statement.blockdepth)
+        local token = statement.value
+        local textValue = type(token) == "table" and token.text or statement.text or ""
+        return beautify(textValue, statement.quoteStyle or statement.quotestyle, statement.blockDepth or statement.blockdepth)
     elseif tag == "nil" then
         return "nil"
     elseif tag == "vararg" then
@@ -432,7 +442,7 @@ function unparser:readexpr(statement, ...)
             local code = func .. "("
 
             for i, arg in statement.arguments do
-                local data = self:readexpr(arg.node)
+                local data = self:readexpr(arg)
 
                 code = code .. (i>1 and "," or "") .. data
             end
@@ -447,7 +457,7 @@ function unparser:readexpr(statement, ...)
 
         for i, arg in statement.arguments do
             local comma = ","
-            local data = self:readexpr(arg.node)
+            local data = self:readexpr(arg)
 
             code = code .. comma .. data
         end
@@ -461,20 +471,21 @@ function unparser:readexpr(statement, ...)
 
         for i, entry in statement.entries do
             local key = entry.key
+            local value = entry.value
+
             if rawNextQuestion then
-                if(isSpiedVar(entry.value) or (key and isSpiedVar(key))) then
+                if isSpiedVar(value) or (key and type(key) == "table" and key.tag and isSpiedVar(key)) then
                     rawNextQuestion = false
                 end
             end
 
-            if key then
-                if entry.value.tag == "reference" then
-                    code = code .. format("%s: %s%s", key.text, self:readexpr(entry.value), (i ~= len and ";" or ""))
-                    continue
-                end
-                code = code .. format("[%s]=", self:readexpr(entry.key))
+            if entry.kind == "record" then
+                code = code .. key.text .. "="
+            elseif entry.kind == "general" then
+                code = code .. "[" .. self:readexpr(key) .. "]="
             end
-            code = code .. self:readexpr(entry.value) .. (i ~= len and ";" or "")
+
+            code = code .. self:readexpr(value) .. (i ~= len and ";" or "")
         end
 
         code = code .. "}"
@@ -485,11 +496,16 @@ function unparser:readexpr(statement, ...)
 
         return code
     elseif tag == "binary" then -- comparison, math & eq
-        local rhs = statement.rhsoperand
-        local lhs = statement.lhsoperand
+        local rhs = statement.rhsOperand
+        local lhs = statement.lhsOperand
         local operator = statement.operator.text
 
-        if not rhs.istoken or not lhs.istoken then --> Cant simplify, just return it raw (Or, apply the custom funcs)
+        local function isConstant(node)
+            return node.tag == "number" or node.tag == "integer" or node.tag == "string"
+                or node.tag == "boolean" or node.tag == "nil"
+        end
+
+        if not (isConstant(rhs) and isConstant(lhs)) then --> Cannot safely fold non-constant expressions.
             local name = self.binaryOperatorNames[operator]
 
             local Lhs = unparser:readexpr(lhs)--Simplify(lhs, DoIgnore);
@@ -516,7 +532,15 @@ function unparser:readexpr(statement, ...)
             return format("%s %s %s", Lhs, operator, Rhs)
         end
 
-        local s, value = pcall(getValue, operator, lhs.text or lhs.value, rhs.text or rhs.value)
+        local function constantValue(node)
+            if node.tag == "string" then
+                local token = node.value
+                return type(token) == "table" and token.text or node.text
+            end
+            return node.value
+        end
+
+        local s, value = pcall(getValue, operator, constantValue(lhs), constantValue(rhs))
 
         if not s or typeof(value) == "number" and value >= maxNum then --> Results that are too large, for example 2^100 can break parsing.
             return format("%s %s %s", self:readexpr(lhs), operator, self:readexpr(rhs))
@@ -567,18 +591,18 @@ function unparser:readexpr(statement, ...)
             index
         )
     elseif tag == "function" then --> function expr
-        local params, vararg = readParams(statement.body)
-        local code = format("function%s%send", params, self:readexpr(statement.body.body, nil, nil, vararg))
+        local params, vararg = readParams(statement)
+        local code = format("function%s%send", params, self:readexpr(statement.body, nil, nil, vararg))
         
         return code
     elseif tag == "conditional" then
-        local code = format("if %s then %s ", self:readexpr(statement.condition), self:readexpr(statement.thenexpr))
+        local code = format("if %s then %s ", self:readexpr(statement.condition), self:readexpr(statement.thenExpr))
 
         for _, elif in statement.elseifs do
-            code = code .. format("elseif %s then %s ", self:readexpr(elif.condition), self:readexpr(elif.thenexpr))
+            code = code .. format("elseif %s then %s ", self:readexpr(elif.condition), self:readexpr(elif.thenExpr))
         end
 
-        code = code .. format("else %s", self:readexpr(statement.elseexpr))
+        code = code .. format("else %s", self:readexpr(statement.elseExpr))
         return code
     elseif tag == "interpolatedstring" then
         local code = "\""
@@ -587,7 +611,7 @@ function unparser:readexpr(statement, ...)
         for _, str in statement.strings do
             table.insert(list, {
                 kind = "string",
-                at = str.position.column,
+                at = str.location.beginColumn,
                 expr = str.text
             })
         end
@@ -595,7 +619,7 @@ function unparser:readexpr(statement, ...)
         for _, expr in statement.expressions do
             table.insert(list, {
                 kind = "expr",
-                at = (expr.position or expr.location.begin).column,
+                at = expr.location.beginColumn,
                 expr = expr
             })
         end
@@ -614,8 +638,8 @@ function unparser:readexpr(statement, ...)
         end
         return callFormat("TEMPLATE_STRING(%s,%s)", code .. "\"", (#exprs == 0 and "nil" or table.concat(exprs, ",")))
     elseif tag == "cast" then
-        print("cast")
-        return ""
+        -- Type assertions do not change runtime behavior; retain the expression.
+        return self:readexpr(statement.operand)
     elseif tag == "reference" then -- Name: string
         return statement.name.text
     end
@@ -626,11 +650,15 @@ end
 
 local args = { ... }
 
-local input = args[1]
-local out = args[2]
-prettyPrint = not args[3] or args[3] == ""
-callId = args[3] or ""
-constantCollection = args[4] == "1"
+local input = args[2]
+local out = args[3]
+prettyPrint = not args[4] or args[4] == ""
+callId = args[4] or ""
+constantCollection = args[5] == "1"
+
+if not input or not out then
+    error("Usage: lute <script.luau> <input.luau> <output.luau> [callId] [constantCollection]")
+end
 
 if callId == "0" then callId = "" end
 
@@ -639,7 +667,10 @@ print("Constant collection:",constantCollection)
 local output = {}
 
 local source = readfile(input)
-lines = source:split("\n")
+lines = {}
+for line in (source .. "\n"):gmatch("(.-)\n") do
+    table.insert(lines, line)
+end
 
 local s = os.clock()
 for _, v in parser.parse(source).root.statements do
@@ -648,4 +679,4 @@ end
 
 print("finished everything in",os.clock()-s,"seconds, file size:",#source / 1024,"kb.")
 
-fs.writestringtofile(out, table.concat(output, " "))
+fs.writeStringToFile(out, table.concat(output, " "))
