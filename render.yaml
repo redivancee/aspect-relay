@@ -2,10 +2,7 @@ services:
   - type: web
     name: aspect-relay
     runtime: node
-    buildCommand: |
-      npm install
-      curl -L https://github.com/lune-org/lune/releases/latest/download/lune-linux-x86_64 -o /usr/local/bin/lune
-      chmod +x /usr/local/bin/lune
+    buildCommand: npm install && curl -L https://github.com/lune-org/lune/releases/latest/download/lune-linux-x86_64 -o ./lune && chmod +x ./lune
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
