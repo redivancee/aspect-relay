@@ -1,10 +1,11 @@
+
+local parser = require("@std/syntax/parser")
+local fs = require("@std/fs")
+local prettyPrint = true
 print(type(parser))
 for k, v in next, parser do
     print(k, v)
 end
-local parser = require("@std/syntax/parser")
-local fs = require("@std/fs")
-local prettyPrint = true
 
 local constantCollection
 local format = string.format
