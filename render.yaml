@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: aspect-relay
+    runtime: node
+    buildCommand: |
+      npm install
+      curl -sSf https://raw.githubusercontent.com/lune-org/lune/main/scripts/install-lune.sh | sh
+      cp ~/.lune/bin/lune /usr/local/bin/lune
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
