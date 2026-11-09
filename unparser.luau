@@ -223,7 +223,15 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         local code = "local ";
         local DoSpy;
         for i, var in statement.variables do
-            local variable = var.name.text
+            -- Lute's parser may expose a local variable as a token directly,
+            -- rather than wrapping it in a `name` field.
+            local nameNode = var.name or var.token or var.identifier or var
+            local variable = type(nameNode) == "table" and nameNode.text or nameNode
+
+            if type(variable) ~= "string" then
+                error("Could not read local variable name from parser node: " .. beautify(var))
+            end
+
             code = code .. (i > 1 and "," or "") .. variable
         end
         if #statement.values == 0 then return code end
