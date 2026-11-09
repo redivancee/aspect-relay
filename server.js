@@ -58,7 +58,7 @@ createServer(async (req, res) => {
         writeFileSync(inPath, script)
 
         exec(
-            `./lute run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
+            `./lute run unparser.luau -- ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
             (err, stdout, stderr) => {
                 let result
                 try { result = readFileSync(outPath, "utf8") } catch { result = null }
