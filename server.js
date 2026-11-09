@@ -4,13 +4,14 @@ import { createServer } from "http"
 import { randomBytes } from "crypto"
 
 async function installLune() {
-    if (existsSync("./lune")) {
-        unlinkSync("./lune")
+    if (existsSync("./lute")) {
+        console.log("lute already exists")
+        return
     }
-    console.log("downloading lune...")
+    console.log("downloading lute...")
     await new Promise((resolve, reject) => {
         exec(
-            "curl -L https://github.com/lune-org/lune/releases/download/v0.8.6/lune-0.8.6-linux-x86_64.zip -o lune.zip && unzip -o lune.zip && chmod +x ./lune && rm lune.zip",
+            "curl -L https://github.com/luau-lang/lute/releases/latest/download/lute-linux-x86_64 -o ./lute && chmod +x ./lute",
             (err, stdout, stderr) => {
                 console.log("install stdout:", stdout)
                 console.log("install stderr:", stderr)
@@ -19,16 +20,16 @@ async function installLune() {
             }
         )
     })
-    console.log("lune installed, exists:", existsSync("./lune"))
+    console.log("lute installed, exists:", existsSync("./lute"))
 }
 
 await installLune()
 
 createServer(async (req, res) => {
     if (req.url === "/debug") {
-        exec("ls -la && find / -name 'parser.luau' 2>/dev/null | head -20 && ./lune --version", (err, stdout, stderr) => {
+        exec("ls -la && find / -name 'parser.luau' 2>/dev/null | head -20 && ./lute --version", (err, stdout, stderr) => {
             res.writeHead(200)
-            res.end(JSON.stringify({ stdout, stderr, luneExists: existsSync("./lune") }))
+            res.end(JSON.stringify({ stdout, stderr, luneExists: existsSync("./lute") }))
         })
         return
     }
@@ -57,7 +58,7 @@ createServer(async (req, res) => {
         writeFileSync(inPath, script)
 
         exec(
-            `./lune run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
+            `./lute run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
             (err, stdout, stderr) => {
                 let result
                 try { result = readFileSync(outPath, "utf8") } catch { result = null }
