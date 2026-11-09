@@ -9,7 +9,20 @@ createServer(async (req, res) => {
     let body = ""
     req.on("data", d => body += d)
     req.on("end", () => {
-        const { script, callId, constantCollection } = JSON.parse(body)
+        let parsed
+        try {
+            parsed = JSON.parse(body)
+        } catch {
+            res.writeHead(400)
+            return res.end(JSON.stringify({ error: "invalid json" }))
+        }
+
+        const { script, callId, constantCollection } = parsed
+
+        if (!script) {
+            res.writeHead(400)
+            return res.end(JSON.stringify({ error: "no script" }))
+        }
 
         const id = randomBytes(8).toString("hex")
         const inPath = `/tmp/${id}_in.lua`
@@ -17,9 +30,8 @@ createServer(async (req, res) => {
 
         writeFileSync(inPath, script)
 
-        // lune run unparser.luau -- _ <input> <output> <callId> <constantCollection>
         exec(
-            `lune run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
+            `./lune run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
             (err, stdout, stderr) => {
                 let result
                 try {
@@ -41,4 +53,4 @@ createServer(async (req, res) => {
             }
         )
     })
-}).listen(3000, () => console.log("running on 3000"))
+}).listen(process.env.PORT || 3000, () => console.log("running"))
