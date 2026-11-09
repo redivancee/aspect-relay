@@ -2,10 +2,7 @@
 local parser = require("@std/syntax/parser")
 local fs = require("@std/fs")
 local prettyPrint = true
-print(type(parser))
-for k, v in next, parser do
-    print(k, v)
-end
+
 
 local constantCollection
 local format = string.format
@@ -645,7 +642,7 @@ local source = readfile(input)
 lines = source:split("\n")
 
 local s = os.clock()
-for _, v in parser.parsefile(source).root.statements do
+for _, v in parser.parse(source).root.statements do
     output[#output+1] = unparser:readexpr(v)
 end
 
