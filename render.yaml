@@ -4,8 +4,8 @@ services:
     runtime: node
     buildCommand: |
       npm install
-      curl -sSf https://raw.githubusercontent.com/lune-org/lune/main/scripts/install-lune.sh | sh
-      cp ~/.lune/bin/lune /usr/local/bin/lune
+      curl -L https://github.com/lune-org/lune/releases/latest/download/lune-linux-x86_64 -o /usr/local/bin/lune
+      chmod +x /usr/local/bin/lune
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
