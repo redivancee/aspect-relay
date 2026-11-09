@@ -1,5 +1,3 @@
 {
-    "aliases": {
-        "std": "/home/render/.lune/std"
-    }
+    "languageMode": "nonstrict"
 }
