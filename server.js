@@ -35,10 +35,12 @@ async function runLute(script, mode, options = {}) {
         writeFileSync(input, script)
 
         const args = mode === "parse"
-            ? ["run", "debug_parse.luau", input, output]
+            ? ["run", "debug_parse.luau", "--", input, output]
             : [
                 "run",
                 "unparser.luau",
+                "--",
+                "_",
                 input,
                 output,
                 options.callId || "0",
