@@ -11,7 +11,7 @@ async function installLune() {
     console.log("downloading lune...")
     await new Promise((resolve, reject) => {
         exec(
-            "curl -L https://github.com/lune-org/lune/releases/download/v0.8.9/lune-0.8.9-linux-x86_64.zip -o lune.zip && unzip -o lune.zip && chmod +x ./lune && rm lune.zip",
+            "curl -L https://github.com/lune-org/lune/releases/download/v0.8.6/lune-0.8.6-linux-x86_64.zip -o lune.zip && unzip -o lune.zip && chmod +x ./lune && rm lune.zip",
             (err, stdout, stderr) => {
                 console.log("install stdout:", stdout)
                 console.log("install stderr:", stderr)
