@@ -34,6 +34,29 @@ createServer(async (req, res) => {
         return
     }
 
+    if (req.url === "/parse") {
+    let body = ""
+    req.on("data", d => body += d)
+    req.on("end", () => {
+        const id = randomBytes(8).toString("hex")
+        const inPath = `/tmp/${id}_in.lua`
+        const outPath = `/tmp/${id}_out.txt`
+        writeFileSync(inPath, "local x = 1\nif x > 0 then\n    print('hi')\nend")
+        exec(
+            `./lute run debug_parse.luau -- ${inPath} ${outPath}`,
+            (err, stdout, stderr) => {
+                let result
+                try { result = readFileSync(outPath, "utf8") } catch { result = null }
+                try { unlinkSync(inPath) } catch {}
+                try { unlinkSync(outPath) } catch {}
+                res.writeHead(200)
+                res.end(JSON.stringify({ result, stdout, stderr }))
+            }
+        )
+    })
+    return
+}
+
     if (req.method !== "POST") return res.end("only POST")
 
     let body = ""
