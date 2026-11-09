@@ -5,8 +5,7 @@ import { randomBytes } from "crypto"
 
 async function installLune() {
     if (existsSync("./lune")) {
-        console.log("lune already exists")
-        return
+        unlinkSync("./lune")
     }
     console.log("downloading lune...")
     await new Promise((resolve, reject) => {
