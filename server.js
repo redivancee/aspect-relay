@@ -11,7 +11,7 @@ async function installLune() {
     console.log("downloading lute...")
     await new Promise((resolve, reject) => {
         exec(
-            "curl -L https://github.com/luau-lang/lute/releases/latest/download/lute-linux-x86_64 -o ./lute && chmod +x ./lute",
+            "curl -L https://github.com/luau-lang/lute/releases/download/v1.0.0/lute-linux-x86_64.zip -o lute.zip && unzip -o lute.zip && chmod +x ./lute && rm lute.zip",
             (err, stdout, stderr) => {
                 console.log("install stdout:", stdout)
                 console.log("install stderr:", stderr)
