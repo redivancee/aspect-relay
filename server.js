@@ -1,24 +1,29 @@
 import { exec } from "child_process"
-import { writeFileSync, readFileSync, unlinkSync } from "fs"
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from "fs"
 import { createServer } from "http"
 import { randomBytes } from "crypto"
 
 createServer(async (req, res) => {
+    if (req.url === "/debug") {
+        exec("ls -la && ls -la /usr/local/bin/lune 2>&1 && which lune 2>&1", (err, stdout, stderr) => {
+            res.writeHead(200)
+            res.end(JSON.stringify({ stdout, stderr, err: err?.message, luneExists: existsSync("./lune") }))
+        })
+        return
+    }
+
     if (req.method !== "POST") return res.end("only POST")
 
     let body = ""
     req.on("data", d => body += d)
     req.on("end", () => {
         let parsed
-        try {
-            parsed = JSON.parse(body)
-        } catch {
+        try { parsed = JSON.parse(body) } catch {
             res.writeHead(400)
             return res.end(JSON.stringify({ error: "invalid json" }))
         }
 
         const { script, callId, constantCollection } = parsed
-
         if (!script) {
             res.writeHead(400)
             return res.end(JSON.stringify({ error: "no script" }))
@@ -34,12 +39,7 @@ createServer(async (req, res) => {
             `./lune run unparser.luau -- _ ${inPath} ${outPath} ${callId || "0"} ${constantCollection ? "1" : ""}`,
             (err, stdout, stderr) => {
                 let result
-                try {
-                    result = readFileSync(outPath, "utf8")
-                } catch {
-                    result = null
-                }
-
+                try { result = readFileSync(outPath, "utf8") } catch { result = null }
                 try { unlinkSync(inPath) } catch {}
                 try { unlinkSync(outPath) } catch {}
 
