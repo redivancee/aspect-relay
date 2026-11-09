@@ -27,9 +27,9 @@ await installLune()
 
 createServer(async (req, res) => {
     if (req.url === "/debug") {
-        exec("ls -la", (err, stdout) => {
+        exec("ls -la && find / -name 'parser.luau' 2>/dev/null | head -20 && ./lune --version", (err, stdout, stderr) => {
             res.writeHead(200)
-            res.end(JSON.stringify({ stdout, luneExists: existsSync("./lune") }))
+            res.end(JSON.stringify({ stdout, stderr, luneExists: existsSync("./lune") }))
         })
         return
     }
