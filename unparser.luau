@@ -624,11 +624,11 @@ end
 
 local args = { ... }
 
-local input = args[2]
-local out = args[3]
-prettyPrint = not args[4] or args[4] == ""
-callId = args[4] or ""
-constantCollection = args[5] == "1"
+local input = args[1]
+local out = args[2]
+prettyPrint = not args[3] or args[3] == ""
+callId = args[3] or ""
+constantCollection = args[4] == "1"
 
 if callId == "0" then callId = "" end
 
