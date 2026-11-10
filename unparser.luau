@@ -261,7 +261,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         end
         return code
     elseif tag == "compoundassign" then
-        return format("%s%s%s", self:readexpr(statement.variable, nil, true), statement.operator.text, self:readexpr(statement.value))
+        return format("%s%s%s", self:readexpr(statement.variable, nil, true), (statement.operand or statement.operator or statement.op).text, self:readexpr(statement.value))
     elseif tag == "expression" then
         return self:readexpr(statement.expression)
     elseif tag == "function" then
