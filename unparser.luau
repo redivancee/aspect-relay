@@ -236,7 +236,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         code = code .. " = "
         for i, val in statement.values do
             code = code .. (i > 1 and "," or "") .. self:readexpr(val)
-            DoSpy = DoSpy or Spied[val]
+            DoSpy = DoSpy or Spied[val.node or val]
         end
         Spied[statement] = Spied[statement] or DoSpy
         return code
@@ -409,6 +409,9 @@ function unparser:readstatement(...)
 end
 
 function unparser:readexpr(statement, ...)
+    if statement.tag == nil and statement.kind == nil and statement.node then
+        statement = statement.node
+    end
     local expr = self:construct(statement)
 
     if expr.class == "statement" then
