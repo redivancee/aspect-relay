@@ -18,6 +18,11 @@ end
 
 local maxNum, tab, visited, callId = 2^64, "    ", {}, nil;
 
+local function nameOf(entry)
+    entry = entry.node or entry
+    return entry.name.text
+end
+
 local beautifyHandlers = {
     table = function(data, tabs)
         if visited[data] then return "{ 'recursive table' }" end
@@ -97,7 +102,7 @@ local function readParams(statement)
     local params = statement.parameters
 
     for i, param in params do
-        code = code .. (i > 1 and ", " or "") .. param.name.text
+        code = code .. (i > 1 and ", " or "") .. nameOf(param)
     end
     local hasVararg = statement.vararg ~= nil
     if hasVararg then
@@ -223,7 +228,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         local code = "local ";
         local DoSpy;
         for i, var in statement.variables do
-            local variable = var.name.text
+            local variable = nameOf(var)
             code = code .. (i > 1 and "," or "") .. variable
         end
         if #statement.values == 0 then return code end
@@ -278,7 +283,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         end
         return code .. (shouldAddDo and "end;" or "")
     elseif tag == "localfunction" then
-        local name = statement.name.name.text
+        local name = nameOf(statement.name)
         local fn = statement.func
         local params, vararg = readParams(fn)
         local code = "local function " .. name .. params
@@ -357,7 +362,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
         stepCode = stepCode and "," .. self:readexpr(stepCode) or "";
 
         local from, to = self:readexpr(statement.from), self:readexpr(statement.to)
-        local var = statement.variable.name.text
+        local var = nameOf(statement.variable)
         local code =
             callFormat("FORINFO(%d,%s,%s%s)", forId, from, to, stepCode) --> feed info into unveilr
         
@@ -368,7 +373,7 @@ function unparser:readstatementF(statement, dontAddDo, ...)
     elseif tag == "forin" then
         local code = "for "
         for i, node in statement.variables do
-            code = code .. (i > 1 and ", " or "") .. node.name.text
+            code = code .. (i > 1 and ", " or "") .. nameOf(node)
         end
         local forin = ""
         for i, val in statement.values do
@@ -650,11 +655,11 @@ end
 
 local args = { ... }
 
-local input = args[1]
-local out = args[2]
-prettyPrint = not args[3] or args[3] == ""
-callId = args[3] or ""
-constantCollection = args[4] == "1"
+local input = args[2]
+local out = args[3]
+prettyPrint = not args[4] or args[4] == ""
+callId = args[4] or ""
+constantCollection = args[5] == "1"
 
 if not input or not out then
     error("Usage: lute <script.luau> <input.luau> <output.luau> [callId] [constantCollection]")
@@ -679,4 +684,6 @@ end
 
 print("finished everything in",os.clock()-s,"seconds, file size:",#source / 1024,"kb.")
 
-fs.writeStringToFile(out, table.concat(output, " "))
+local outHandle = fs.open(out, "w")
+fs.write(outHandle, table.concat(output, " "))
+fs.close(outHandle)
