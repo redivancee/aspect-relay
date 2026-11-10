@@ -40,7 +40,6 @@ async function runLute(script, mode, options = {}) {
                 "run",
                 "unparser.luau",
                 "--",
-                "_",
                 input,
                 output,
                 options.callId || "0",
